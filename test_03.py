@@ -13,7 +13,6 @@ import numpy as np
 
 c = pva.Channel('2bmbSP1:Pva1:Image')
 pv1 = c.get('')
-
 pv1d = pv1.getStructureDict()
 
 pv2 = pva.PvObject(pv1d)
@@ -23,8 +22,4 @@ pv2['value'] = ({'ubyteValue' : image},)
 
 s = pva.PvaServer('AdImage', pv2)
 
-def cloneImage(pv):
-    s.update(pv)
-
-c.monitor(cloneImage, '')
 
