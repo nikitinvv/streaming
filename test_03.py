@@ -10,16 +10,22 @@
 
 import pvaccess as pva
 import numpy as np
+import time
 
 c = pva.Channel('2bmbSP1:Pva1:Image')
 pv1 = c.get('')
 pv1d = pv1.getStructureDict()
 
+# copy dictionaries for value and dimension fields
 pv2 = pva.PvObject(pv1d)
-
-image = np.random.randint(0, 255, 3145728, dtype=np.uint8)
-pv2['value'] = ({'ubyteValue' : image},)
-
+image = (np.random.random([512,256])*256).astype('float32')
+pv2['value'] = ({'floatValue' : image},)
+print(pv1['dimension'])
+# set dimensions for data
+pv2['dimension'] = [{'size':image.shape[0], 'fullSize':image.shape[0], 'binning':1},\
+					{'size':image.shape[1], 'fullSize':image.shape[0], 'binning':1}]
 s = pva.PvaServer('AdImage', pv2)
-
-
+while(True):
+	image = (np.random.random([512,256])).astype('float32').flatten()
+	pv2['value'] = ({'floatValue' : image},)
+	time.sleep(1)
