@@ -83,11 +83,11 @@ void radonortho::rec(size_t fx_,size_t fy_,size_t fz_, size_t g_, size_t theta_,
 	cufftExecC2R(plan_inverse, (cufftComplex *)fg, (cufftReal *)g);
 	//cudaMemcpy((float *)g_, g, n * ntheta * nz * sizeof(float), cudaMemcpyDefault);
 	if(flgx)
-		cudaMemset(fx,0,n*n*sizeof(float));
+		cudaMemset(fx,0,n*nz*sizeof(float));
 	if(flgy)
 		cudaMemset(fy,0,n*nz*sizeof(float));
 	if(flgz)
-		cudaMemset(fz,0,n*nz*sizeof(float));
+		cudaMemset(fz,0,n*n*sizeof(float));
 
 	// reconstruct slices via summation over lines	
 	ortho_kerx<<<GS3d3, BS3d>>>(fx, g, theta, center, ix, n, ntheta, nz);
