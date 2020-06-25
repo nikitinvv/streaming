@@ -20,7 +20,6 @@ pv1d = pv1.getStructureDict()
 pv2 = pva.PvObject(pv1d)
 image = (np.random.random([512,256])*256).astype('float32')
 pv2['value'] = ({'floatValue' : image},)
-print(pv1['dimension'])
 # set dimensions for data
 pv2['dimension'] = [{'size':image.shape[0], 'fullSize':image.shape[0], 'binning':1},\
 					{'size':image.shape[1], 'fullSize':image.shape[0], 'binning':1}]
