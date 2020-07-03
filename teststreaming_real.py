@@ -9,6 +9,7 @@ mrwlock = RWLock()
 
 def start_fly():
     """ init and run fly scan """
+
     chfly = pva.Channel('2bma:PSOFly2:fly', pva.CA)
     chtaxi = pva.Channel('2bma:PSOFly2:taxi', pva.CA)
     chTriggerMode = pva.Channel('2bmbSP1:cam1:TriggerMode', pva.CA)
@@ -78,94 +79,97 @@ def takeflat(chdata):
 
 
 def streaming():
-    """
-    Main computational function, take data from pvdata ('2bmbSP1:Pva1:Image'),
-    reconstruct orthogonal slices and write the result to pvrec ('AdImage')
-    """
+	"""
+	Main computational function, take data from pvdata ('2bmbSP1:Pva1:Image'),
+	reconstruct orthogonal slices and write the result to pvrec ('AdImage')
+	"""
 
-    ##### init pvs ######
-    # init ca pvs
-    chscanDelta = pva.Channel('2bma:PSOFly2:scanDelta', pva.CA)
-    chrotangle = pva.Channel('2bma:m82', pva.CA)
-    chrotangleset = pva.Channel('2bma:m82.SET', pva.CA)
-    chStreamX = pva.Channel('2bmS1:StreamX', pva.CA)
-    chStreamY = pva.Channel('2bmS1:StreamY', pva.CA)
-    chStreamZ = pva.Channel('2bmS1:StreamZ', pva.CA)
+	##### init pvs ######
+	# init ca pvs
+	chscanDelta = pva.Channel('2bma:PSOFly2:scanDelta', pva.CA)
+	chrotangle = pva.Channel('2bma:m82', pva.CA)
+	chrotangleset = pva.Channel('2bma:m82.SET', pva.CA)
+	chrotanglestop = pva.Channel('2bma:m82.STOP', pva.CA)    
+	chStreamX = pva.Channel('2bmS1:StreamX', pva.CA)
+	chStreamY = pva.Channel('2bmS1:StreamY', pva.CA)
+	chStreamZ = pva.Channel('2bmS1:StreamZ', pva.CA)
     # init pva streaming pv for the detector
-    chdata = pva.Channel('2bmbSP1:Pva1:Image')
-    pvdata = chdata.get('')
+	chdata = pva.Channel('2bmbSP1:Pva1:Image')
+	pvdata = chdata.get('')
     # init pva streaming pv for reconstrucion with coping dictionary from pvdata
-    pvdict = pvdata.getStructureDict()
-    pvrec = pva.PvObject(pvdict)
-    # take dimensions
-    n = pvdata['dimension'][0]['size']
-    nz = pvdata['dimension'][1]['size']
-    # set dimensions for reconstruction
-    pvrec['dimension'] = [{'size': 3*n, 'fullSize': 3*n, 'binning': 1},
-                          {'size': n, 'fullSize': n, 'binning': 1}]
+	pvdict = pvdata.getStructureDict()
+	pvrec = pva.PvObject(pvdict)
+	# take dimensions
+	n = pvdata['dimension'][0]['size']
+	nz = pvdata['dimension'][1]['size']
+	# set dimensions for reconstruction
+	pvrec['dimension'] = [{'size': 3*n, 'fullSize': 3*n, 'binning': 1},
+							{'size': n, 'fullSize': n, 'binning': 1}]
 
-    ##### run server for reconstruction pv #####
-    s = pva.PvaServer('AdImage', pvrec)
+	##### run server for reconstruction pv #####
+	s = pva.PvaServer('AdImage', pvrec)
 
-    ##### procedures before running fly #######
+	##### procedures before running fly #######
 
-    # 0) form circular buffer, whenever the angle goes higher than 180
-    # than corresponding projection is replacing the first one
-    scanDelta = chscanDelta.get('')['value']
-    ntheta = np.int(180/scanDelta+0.5)
-    databuffer = np.zeros([ntheta, nz*n], dtype='uint8')
-    thetabuffer = np.zeros(ntheta, dtype='float32')
-    # 1) replace rotation stage angle to a value in [0,360)
-    rotangle = chrotangle.get('')['value']
-    chrotangleset.put(1)
-    chrotangle.put(rotangle-rotangle//360*360)
-    chrotangleset.put(0)
-    # 2) take flat field
-    flat = takeflat(chdata).reshape(nz, n).astype('float32')
-    firstid = chdata.get('')['uniqueId']
-    # 3) create solver class on GPU
-    slv = OrthoRec(ntheta, n, nz)
-    # 4) allocate memory for result slices
-    recall = np.zeros([n, 3*n], dtype='float32')
-    # 5) start monitoring the detector pv for data collection
+	# 0) form circular buffer, whenever the angle goes higher than 180
+	# than corresponding projection is replacing the first one
+	scanDelta = chscanDelta.get('')['value']
+	ntheta = np.int(180/scanDelta+0.5)
+	databuffer = np.zeros([ntheta, nz*n], dtype='uint8')
+	thetabuffer = np.zeros(ntheta, dtype='float32')
+	# 1) stop rotation, replace rotation stage angle to a value in [0,360)
+	chrotanglestop.put(1)
+	time.sleep(3)
+	rotangle = chrotangle.get('')['value']
+	chrotangleset.put(1)
+	chrotangle.put(rotangle-rotangle//360*360)
+	chrotangleset.put(0)
+	# 2) take flat field
+	flat = takeflat(chdata).reshape(nz, n).astype('float32')
+	firstid = chdata.get('')['uniqueId']
+	# 3) create solver class on GPU
+	slv = OrthoRec(ntheta, n, nz)
+	# 4) allocate memory for result slices
+	recall = np.zeros([n, 3*n], dtype='float32')
+	# 5) start monitoring the detector pv for data collection
 
-    def addProjection(pv):
-        with mrwlock.w_locked():
-            curid = pv['uniqueId']
-            databuffer[np.mod(curid, ntheta)] = pv['value'][0]['ubyteValue']
-            thetabuffer[np.mod(curid, ntheta)] = (curid-firstid)*scanDelta
-            print(firstid, curid)
-    chdata.monitor(addProjection, '')
+	def addProjection(pv):
+		with mrwlock.w_locked():
+			curid = pv['uniqueId']
+			databuffer[np.mod(curid, ntheta)] = pv['value'][0]['ubyteValue']
+			thetabuffer[np.mod(curid, ntheta)] = (curid-firstid)*scanDelta
+			#print(firstid, curid)
+	chdata.monitor(addProjection, '')
 
-    ##### start acquisition #######
-    start_fly()
+	##### start acquisition #######
+	start_fly()
 
-    ##### streaming reconstruction ######
-    while(True):  # infinite loop over angular partitions
-        with mrwlock.r_locked():  # lock buffer before reading
-            datap = databuffer.copy()
-            thetap = thetabuffer.copy()
+	##### streaming reconstruction ######
+	while(True):  # infinite loop over angular partitions
+		with mrwlock.r_locked():  # lock buffer before reading
+			datap = databuffer.copy()
+			thetap = thetabuffer.copy()
 
-        # flat field correction
-        datap = datap.reshape(ntheta, nz, n).astype('float32')/flat
+		# flat field correction
+		datap = datap.reshape(ntheta, nz, n).astype('float32')/flat
 
-        # take 3 ortho slices ids
-        idx = chStreamX.get('')['value']
-        idy = chStreamY.get('')['value']
-        idz = chStreamZ.get('')['value']
+		# take 3 ortho slices ids
+		idx = chStreamX.get('')['value']
+		idy = chStreamY.get('')['value']
+		idz = chStreamZ.get('')['value']
 
-        # reconstruct on GPU
-        recx, recy, recz = slv.rec_ortho(
-            datap, thetap*np.pi/180, n//2, idx, idy, idz)
+		# reconstruct on GPU
+		recx, recy, recz = slv.rec_ortho(
+			datap, thetap*np.pi/180, n//2, idx, idy, idz)
 
-        # concatenate (supposing nz<n)
-        recall[:nz, :n] = recx
-        recall[:nz, n:2*n] = recy
-        recall[:, 2*n:] = recz
-        # write to pv
-        pvrec['value'] = ({'floatValue': recall.flatten()},)
-        # reconstruction rate limit
-        time.sleep(0.01)
+		# concatenate (supposing nz<n)
+		recall[:nz, :n] = recx
+		recall[:nz, n:2*n] = recy
+		recall[:, 2*n:] = recz
+		# write to pv
+		pvrec['value'] = ({'floatValue': recall.flatten()},)
+		# reconstruction rate limit
+		time.sleep(0.01)
 
 
 if __name__ == "__main__":
