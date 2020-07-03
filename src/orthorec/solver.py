@@ -34,7 +34,7 @@ class OrthoRec(radonortho):
         """Free GPU memory due at interruptions or with-block exit."""
         self.free()
 
-    def rec_ortho(self, data, theta, center, ix, iy, iz, flgx, flgy, flgz):
+    def rec_ortho(self, data, theta, center, ix, iy, iz, flgx=1, flgy=1, flgz=1):
         """Reconstruction of 3 ortho slices with respect to ix,iy,iz indeces"""
         recx = np.zeros([self.nz, self.n], dtype='float32')
         recy = np.zeros([self.nz, self.n], dtype='float32')
