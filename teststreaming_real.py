@@ -3,7 +3,10 @@ import numpy as np
 from orthorec import *
 import pvaccess as pva
 import threading
+from timing import tic,toc
 from rwlock import RWLock
+
+# global r/w lock variable for r/w from the projection buffer
 mrwlock = RWLock()
 
 
@@ -40,42 +43,42 @@ def start_fly():
 
 
 def takeflat(chdata):
-    """ take 1 flat field, probably Multiple is needed """
+	""" take 1 flat field, probably Multiple is needed """
 
-    chTriggerMode = pva.Channel('2bmbSP1:cam1:TriggerMode', pva.CA)
-    chImageMode = pva.Channel('2bmbSP1:cam1:ImageMode', pva.CA)
-    chAcquire = pva.Channel('2bmbSP1:cam1:Acquire', pva.CA)
-    #chNumImages= pva.Channel('2bmbSP1:cam1:NumImages', pva.CA)
+	chTriggerMode = pva.Channel('2bmbSP1:cam1:TriggerMode', pva.CA)
+	chImageMode = pva.Channel('2bmbSP1:cam1:ImageMode', pva.CA)
+	chAcquire = pva.Channel('2bmbSP1:cam1:Acquire', pva.CA)
+	#chNumImages= pva.Channel('2bmbSP1:cam1:NumImages', pva.CA)
 
-    chSamXrbv = pva.Channel('2bma:m49.RBV', pva.CA)
-    chSamX = pva.Channel('2bma:m49', pva.CA)
+	chSamXrbv = pva.Channel('2bma:m49.RBV', pva.CA)
+	chSamX = pva.Channel('2bma:m49', pva.CA)
 
-    # remember the current position samx
-    cur = chSamXrbv.get('')['value']
+	# remember the current position samx
+	cur = chSamXrbv.get('')['value']
 
-    # move sample out
-    chSamX.put(-3)
-    time.sleep(4)
+	# move sample out
+	chSamX.put(-3)
+	time.sleep(4)
 
-    # change to single mode
-    chTriggerMode.put('Off')
-    time.sleep(0.1)
-    chImageMode.put('Single')
-    time.sleep(0.1)
+	# change to single mode
+	chTriggerMode.put('Off')
+	time.sleep(0.1)
+	chImageMode.put('Single')
+	time.sleep(0.1)
 
-    # chNumImages.put(10)
-    # time.sleep(0.1)
+	# chNumImages.put(10)
+	# time.sleep(0.1)
 
-    # Acquire, and take array from pv
-    chAcquire.put(1)
-    flat = chdata.get('')['value'][0]['ubyteValue']
-    time.sleep(1)
+	# Acquire, and take array from pv
+	chAcquire.put(1)
+	flat = chdata.get('')['value'][0]['ubyteValue']
+	time.sleep(1)
 
-    # move sample in
-    chSamX.put(cur)
-    time.sleep(4)
+	# move sample in
+	chSamX.put(cur)
+	time.sleep(4)
 
-    return flat
+	return flat
 
 
 def streaming():
@@ -125,10 +128,11 @@ def streaming():
 	chrotangle.put(rotangle-rotangle//360*360)
 	chrotangleset.put(0)
 	# 2) take flat field
-	flat = takeflat(chdata).reshape(nz, n).astype('float32')
+	flat = takeflat(chdata)
 	firstid = chdata.get('')['uniqueId']
-	# 3) create solver class on GPU
-	slv = OrthoRec(ntheta, n, nz)
+	# 3) create solver class on GPU, and copy flat field to gpu
+	slv = OrthoRec(ntheta, n, nz)	
+	slv.set_flat(flat)
 	# 4) allocate memory for result slices
 	recall = np.zeros([n, 3*n], dtype='float32')
 	# 5) start monitoring the detector pv for data collection
@@ -150,17 +154,15 @@ def streaming():
 			datap = databuffer.copy()
 			thetap = thetabuffer.copy()
 
-		# flat field correction
-		datap = datap.reshape(ntheta, nz, n).astype('float32')/flat
-
 		# take 3 ortho slices ids
 		idx = chStreamX.get('')['value']
 		idy = chStreamY.get('')['value']
 		idz = chStreamZ.get('')['value']
-
 		# reconstruct on GPU
+		tic()
 		recx, recy, recz = slv.rec_ortho(
 			datap, thetap*np.pi/180, n//2, idx, idy, idz)
+		print('rec time:',toc())
 
 		# concatenate (supposing nz<n)
 		recall[:nz, :n] = recx
@@ -169,8 +171,8 @@ def streaming():
 		# write to pv
 		pvrec['value'] = ({'floatValue': recall.flatten()},)
 		# reconstruction rate limit
-		time.sleep(0.01)
-
+		time.sleep(0.1)
+		
 
 if __name__ == "__main__":
     streaming()

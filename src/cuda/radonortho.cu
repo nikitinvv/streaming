@@ -9,6 +9,9 @@ radonortho::radonortho(size_t ntheta, size_t n, size_t nz)
 	cudaMalloc((void **)&fy, n * nz * sizeof(float));
 	cudaMalloc((void **)&fz, n * n * sizeof(float));
 	cudaMalloc((void **)&g, n * ntheta * nz * sizeof(float));
+	cudaMalloc((void **)&gs, n * ntheta * nz * sizeof(unsigned char));	
+	cudaMalloc((void **)&flat, n * nz * sizeof(unsigned char));
+	
 	cudaMalloc((void **)&fg, (n / 2 + 1) * ntheta * nz * sizeof(float2));
 	cudaMalloc((void **)&filter, (n / 2 + 1) * sizeof(float));	
 	cudaMalloc((void **)&theta, ntheta * sizeof(float));
@@ -54,6 +57,7 @@ void radonortho::free()
 	if (!is_free) 
 	{
 		cudaFree(g);
+		cudaFree(gs);		
 		cudaFree(fg);
 		cudaFree(fx);
 		cudaFree(fy);
@@ -69,26 +73,32 @@ void radonortho::free()
 }
 
 
-void radonortho::rec(size_t fx_,size_t fy_,size_t fz_, size_t g_, size_t theta_, float center, int ix, int iy, int iz, int flgx, int flgy, int flgz)
+void radonortho::rec(size_t fx_,size_t fy_,size_t fz_, size_t g_, size_t theta_, float center, int ix, int iy, int iz)
 {
 	// copy data and angles to GPU
-	cudaMemcpy(g, (float *)g_, n * ntheta * nz * sizeof(float), cudaMemcpyDefault);
+	cudaMemcpy(gs, (unsigned char *)g_, n * ntheta * nz * sizeof(unsigned char), cudaMemcpyDefault);	
 	cudaMemcpy(theta, (float *)theta_, ntheta * sizeof(float), cudaMemcpyDefault);
 	
+	// convert short to float
+	correction<<<GS3d1, BS3d>>>(g, gs, flat, n, ntheta, nz);	
+	
+	/*float* gg = new float[n*ntheta*nz];
+	cudaMemcpy(gg,g,n*ntheta*nz*sizeof(float),cudaMemcpyDefault);
+	double norm=0;
+	//unsigned char* gg = (unsigned char *)flat;
+	for (int k=0;k<n*ntheta*nz;k++)
+		norm+=(float)gg[k]*(float)gg[k];
+	fprintf(stderr,"here: %f",sqrt(norm));
+	delete[] gg;*/		
+
 	// fft for filtering in the frequency domain
 	cufftExecR2C(plan_forward, (cufftReal *)g, (cufftComplex *)fg);
 	// parzen filtering
 	applyfilter<<<GS3d1, BS3d>>>(fg, filter, n, ntheta, nz);
 	// fft back
 	cufftExecC2R(plan_inverse, (cufftComplex *)fg, (cufftReal *)g);
-	//cudaMemcpy((float *)g_, g, n * ntheta * nz * sizeof(float), cudaMemcpyDefault);
-	if(flgx)
-		cudaMemset(fx,0,n*nz*sizeof(float));
-	if(flgy)
-		cudaMemset(fy,0,n*nz*sizeof(float));
-	if(flgz)
-		cudaMemset(fz,0,n*n*sizeof(float));
-
+	//cudaMemcpy((float *)g_, g, n * ntheta * nz * sizeof(float), cudaMemcpyDefault);	
+	
 	// reconstruct slices via summation over lines	
 	ortho_kerx<<<GS3d3, BS3d>>>(fx, g, theta, center, ix, n, ntheta, nz);
 	ortho_kery<<<GS3d3, BS3d>>>(fy, g, theta, center, iy, n, ntheta, nz);	
@@ -103,4 +113,10 @@ void radonortho::rec(size_t fx_,size_t fy_,size_t fz_, size_t g_, size_t theta_,
 void radonortho::set_filter(size_t filter_)
 {
 	cudaMemcpy(filter, (float*) filter_, (n/2+1)*sizeof(float),cudaMemcpyDefault);
+}
+
+void radonortho::set_flat(size_t flat_)
+{
+	cudaMemcpy(flat, (unsigned char*) flat_, n*nz*sizeof(unsigned char),cudaMemcpyDefault);
+	
 }

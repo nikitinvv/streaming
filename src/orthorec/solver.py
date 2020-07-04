@@ -34,7 +34,12 @@ class OrthoRec(radonortho):
         """Free GPU memory due at interruptions or with-block exit."""
         self.free()
 
-    def rec_ortho(self, data, theta, center, ix, iy, iz, flgx=1, flgy=1, flgz=1):
+    def set_flat(self, flat):
+        """Copy flat field to GPU for flat field correction"""
+        flat = np.ascontiguousarray(flat)
+        super().set_flat(getp(flat))
+
+    def rec_ortho(self, data, theta, center, ix, iy, iz):
         """Reconstruction of 3 ortho slices with respect to ix,iy,iz indeces"""
         recx = np.zeros([self.nz, self.n], dtype='float32')
         recy = np.zeros([self.nz, self.n], dtype='float32')
@@ -44,7 +49,8 @@ class OrthoRec(radonortho):
 
         # C++ wrapper, send pointers to GPU arrays
         self.rec(getp(recx), getp(recy),
-                 getp(recz), getp(data), getp(theta), center, ix, iy, iz, flgx, flgy, flgz)
+                 getp(recz), getp(data), getp(theta), center, ix, iy, iz)
+
         return recx, recy, recz
 
     def init_filter(self, filter='parzen', p=2):
