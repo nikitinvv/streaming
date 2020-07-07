@@ -24,7 +24,7 @@ void __global__ correction(float *g, unsigned char *gs, unsigned char *flat, int
 		return;
 	int id = tx + ty * n + tz * ntheta * n;
 	int idf = tx + tz * n;
-	g[id] = -__logf((float)gs[id]/((float)flat[idf]+1e-6)+1e-6);
+	g[id] =  -__logf((float)gs[id]/((float)flat[idf]+1e-6)+1e-6);
 }
 
 void __global__ ortho_kerz(float *f, float *g, float *theta, float center, int iz, int n, int ntheta, int nz)

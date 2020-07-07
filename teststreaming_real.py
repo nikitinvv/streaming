@@ -58,7 +58,7 @@ def takeflat(chdata):
 
 	# move sample out
 	chSamX.put(-3)
-	time.sleep(4)
+	time.sleep(5)
 
 	# change to single mode
 	chTriggerMode.put('Off')
@@ -76,7 +76,7 @@ def takeflat(chdata):
 
 	# move sample in
 	chSamX.put(cur)
-	time.sleep(4)
+	time.sleep(5)
 
 	return flat
 

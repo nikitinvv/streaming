@@ -79,17 +79,11 @@ void radonortho::rec(size_t fx_,size_t fy_,size_t fz_, size_t g_, size_t theta_,
 	cudaMemcpy(gs, (unsigned char *)g_, n * ntheta * nz * sizeof(unsigned char), cudaMemcpyDefault);	
 	cudaMemcpy(theta, (float *)theta_, ntheta * sizeof(float), cudaMemcpyDefault);
 	
+	//cudaMemcpy(g, (float *)g_, n * ntheta * nz * sizeof(float), cudaMemcpyDefault);	
+	
 	// convert short to float
 	correction<<<GS3d1, BS3d>>>(g, gs, flat, n, ntheta, nz);	
 	
-	/*float* gg = new float[n*ntheta*nz];
-	cudaMemcpy(gg,g,n*ntheta*nz*sizeof(float),cudaMemcpyDefault);
-	double norm=0;
-	//unsigned char* gg = (unsigned char *)flat;
-	for (int k=0;k<n*ntheta*nz;k++)
-		norm+=(float)gg[k]*(float)gg[k];
-	fprintf(stderr,"here: %f",sqrt(norm));
-	delete[] gg;*/		
 
 	// fft for filtering in the frequency domain
 	cufftExecR2C(plan_forward, (cufftReal *)g, (cufftComplex *)fg);
