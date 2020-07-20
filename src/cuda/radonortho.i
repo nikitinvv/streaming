@@ -20,6 +20,7 @@ public:
   void rec(size_t fx, size_t fy, size_t fz, size_t g, size_t theta, float center, int ix, int iy, int iz);  
   void set_filter(size_t filter);  
   void set_flat(size_t flat);  
+  void set_dark(size_t dark);  
   
   void free();
 };

@@ -3,7 +3,8 @@
 import numpy as np
 from orthorec.radonortho import radonortho
 from scipy import linalg
-
+import signal
+import sys
 
 def getp(a):
     return a.__array_interface__['data'][0]
@@ -24,7 +25,15 @@ class OrthoRec(radonortho):
         """Create class for the tomo solver."""
         super().__init__(ntheta, n, nz)
         self.init_filter('parzen')
-       # exit()
+        
+        def signal_handler(sig, frame):  # Free gpu memory after SIGINT, SIGSTSTP
+            print('free GPU')
+            self.free()
+
+            sys.exit(0)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTSTP, signal_handler)
+        
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -36,8 +45,13 @@ class OrthoRec(radonortho):
 
     def set_flat(self, flat):
         """Copy flat field to GPU for flat field correction"""
-        flat = np.ascontiguousarray(flat)
+        flat = np.ascontiguousarray(flat.astype('float32'))
         super().set_flat(getp(flat))
+
+    def set_dark(self, dark):
+        """Copy dark field to GPU for dark field correction"""
+        dark = np.ascontiguousarray(dark.astype('float32'))
+        super().set_dark(getp(dark))
 
     def rec_ortho(self, data, theta, center, ix, iy, iz):
         """Reconstruction of 3 ortho slices with respect to ix,iy,iz indeces"""

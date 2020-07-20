@@ -10,7 +10,8 @@ radonortho::radonortho(size_t ntheta, size_t n, size_t nz)
 	cudaMalloc((void **)&fz, n * n * sizeof(float));
 	cudaMalloc((void **)&g, n * ntheta * nz * sizeof(float));
 	cudaMalloc((void **)&gs, n * ntheta * nz * sizeof(unsigned char));	
-	cudaMalloc((void **)&flat, n * nz * sizeof(unsigned char));
+	cudaMalloc((void **)&flat, n * nz * sizeof(float));
+	cudaMalloc((void **)&dark, n * nz * sizeof(float));
 	
 	cudaMalloc((void **)&fg, (n / 2 + 1) * ntheta * nz * sizeof(float2));
 	cudaMalloc((void **)&filter, (n / 2 + 1) * sizeof(float));	
@@ -82,7 +83,7 @@ void radonortho::rec(size_t fx_,size_t fy_,size_t fz_, size_t g_, size_t theta_,
 	//cudaMemcpy(g, (float *)g_, n * ntheta * nz * sizeof(float), cudaMemcpyDefault);	
 	
 	// convert short to float
-	correction<<<GS3d1, BS3d>>>(g, gs, flat, n, ntheta, nz);	
+	correction<<<GS3d1, BS3d>>>(g, gs, flat, dark, n, ntheta, nz);	
 	
 
 	// fft for filtering in the frequency domain
@@ -111,6 +112,12 @@ void radonortho::set_filter(size_t filter_)
 
 void radonortho::set_flat(size_t flat_)
 {
-	cudaMemcpy(flat, (unsigned char*) flat_, n*nz*sizeof(unsigned char),cudaMemcpyDefault);
+	cudaMemcpy(flat, (float*) flat_, n*nz*sizeof(float),cudaMemcpyDefault);
+	
+}
+
+void radonortho::set_dark(size_t dark_)
+{
+	cudaMemcpy(dark, (float*) dark_, n*nz*sizeof(float),cudaMemcpyDefault);
 	
 }

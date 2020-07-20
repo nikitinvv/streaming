@@ -4,4 +4,4 @@
 python setup.py install
 
 ## Test
-python test.py
+D_LIBRARY_PATH=/usr/local-linux/cuda-10.1/lib64 python streaming_rec.py 

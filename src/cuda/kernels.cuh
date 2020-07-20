@@ -15,7 +15,7 @@ void __global__ applyfilter(float2 *f, float* w, int n, int ntheta, int nz)
 	f[id0].y *= w[tx]/c;
 }
 
-void __global__ correction(float *g, unsigned char *gs, unsigned char *flat, int n, int ntheta, int nz)
+void __global__ correction(float *g, unsigned char *gs, float *flat, float *dark, int n, int ntheta, int nz)
 {
 	int tx = blockDim.x * blockIdx.x + threadIdx.x;
 	int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -24,7 +24,8 @@ void __global__ correction(float *g, unsigned char *gs, unsigned char *flat, int
 		return;
 	int id = tx + ty * n + tz * ntheta * n;
 	int idf = tx + tz * n;
-	g[id] =  -__logf((float)gs[id]/((float)flat[idf]+1e-6)+1e-6);
+	g[id] =  -__logf(((float)gs[id]-dark[idf])/(flat[idf]-dark[idf]+1e-6)+1e-6);
+
 }
 
 void __global__ ortho_kerz(float *f, float *g, float *theta, float center, int iz, int n, int ntheta, int nz)

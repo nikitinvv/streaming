@@ -15,7 +15,9 @@ import time
 c = pva.Channel('2bmbSP1:Pva1:Image')
 pv1 = c.get('')
 pv1d = pv1.getStructureDict()
+print(pv1d)
 
+exit()
 # copy dictionaries for value and dimension fields
 pv2 = pva.PvObject(pv1d)
 image = (np.random.random([512,256])*256).astype('float32')
